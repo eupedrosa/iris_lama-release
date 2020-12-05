@@ -84,6 +84,15 @@ public:
         /// strategy to use in the optimization.
         std::string strategy;
 
+        /// number of particles used for global localization.
+        uint32_t gloc_particles;
+
+        /// maximum number of global localization iterations.
+        uint32_t gloc_iters;
+
+        /// RMSE threshold to accept the global localization estimate.
+        double gloc_thresh;
+
         /// wether or not to keep an execution summary.
         bool keep_summary;
     };
@@ -100,7 +109,7 @@ public:
 
     bool enoughMotion(const Pose2D& odometry);
 
-    bool update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double timestamp);
+    bool update(const PointCloudXYZ::Ptr& surface, const Pose2D& odometry, double timestamp, bool force_update = false);
 
     void triggerGlobalLocalization();
 
@@ -109,6 +118,12 @@ public:
 
     inline const Pose2D& getPose() const
     { return pose_; }
+
+    inline double getRMSE() const
+    { return rmse_; }
+
+    inline bool globalLocalizationIsActive() const
+    { return do_global_localization_; }
 
 private:
 
@@ -125,8 +140,16 @@ private:
 
     double trans_thresh_;
     double rot_thresh_;
+    double rmse_;
+
     bool has_first_scan;
     bool do_global_localization_;
+
+    double gloc_particles_;
+    double gloc_thresh_;
+    uint32_t gloc_iters_;
+    uint32_t gloc_cur_iter_;
+
 };
 
 } /* lama */
