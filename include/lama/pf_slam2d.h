@@ -43,12 +43,15 @@
 #include "sdm/dynamic_distance_map.h"
 #include "sdm/frequency_occupancy_map.h"
 
+#include <Eigen/StdVector>
+
 namespace lama {
 
 struct ThreadPool;
 
 class PFSlam2D {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     typedef Solver::Options SolverOptions;
 
@@ -62,6 +65,7 @@ public:
 public:
 
     struct Particle {
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
         // The weight of the particle
         double weight;
@@ -152,6 +156,9 @@ public:
         double l2_max = 0.5;
         /// If != from zero, truncate the ray lenght (includes the endpoint).
         double truncated_ray = 0.0;
+        /// If != from zero and ray length > truncated_range, truncate the ray from the
+        /// starting point and do not add an obstacle for the hit
+        double truncated_range = 0.0;
         /// Resolutions of the maps.
         double resolution = 0.05;
         /// The side size of a patch
@@ -257,6 +264,7 @@ private:
     bool   has_first_scan;
 
     double truncated_ray_;
+    double truncated_range_;
     double max_weight_;
     double delta_free_;
     double neff_;
