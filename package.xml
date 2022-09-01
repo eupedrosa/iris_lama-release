@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
-<package>
+<package format="2">
 
     <name>iris_lama</name>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
     <description>
         IRIS package for Localization and Mapping (LaMa).
         This packages includes the sparse-dense library for grid mapping,
@@ -16,11 +16,12 @@
 
     <license>BSD</license>
 
-    <buildtool_depend>catkin</buildtool_depend>
+    <buildtool_depend>cmake</buildtool_depend>
 
     <build_depend>eigen</build_depend>
-    <run_depend>eigen</run_depend>
 
-    <export />
+    <export>
+        <build_type>cmake</build_type>
+    </export>
 
 </package>

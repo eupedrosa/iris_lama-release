@@ -233,10 +233,10 @@ public:
 
 private:
 
-    StrategyPtr makeStrategy(const std::string& name, const VectorXd& parameters);
-    RobustCostPtr makeRobust(const std::string& name, const double& param);
+    StrategyPtr makeStrategy(const std::string& name);
+    RobustCostPtr makeRobust(const std::string& name);
 
-    void drawFromMotion(const Pose2D& delta, const Pose2D& old_pose, Pose2D& pose);
+    void drawFromMotion(const Pose2D& delta, Pose2D& pose);
 
     double likelihood(const PointCloudXYZ::Ptr& surface, Pose2D& pose);
 
