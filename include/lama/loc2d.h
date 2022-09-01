@@ -93,8 +93,9 @@ public:
         /// RMSE threshold to accept the global localization estimate.
         double gloc_thresh;
 
-        /// wether or not to keep an execution summary.
-        bool keep_summary;
+        /// Blending factor between the covariance from the optimization
+        /// and the sampling covariance.
+        double cov_blend;
     };
 
 public:
@@ -130,10 +131,12 @@ public:
 
 private:
 
+    void addSamplingCovariance(const PointCloudXYZ::Ptr& surface);
+
     void globalLocalization(const PointCloudXYZ::Ptr& surface);
 
-    StrategyPtr makeStrategy(const std::string& name, const VectorXd& parameters);
-    RobustCostPtr makeRobust(const std::string& name, const double& param);
+    StrategyPtr makeStrategy(const std::string& name);
+    RobustCostPtr makeRobust(const std::string& name);
 
 private:
     SolverOptions solver_options_;
@@ -141,6 +144,9 @@ private:
     Pose2D odom_;
     Pose2D pose_;
     Matrix3d cov_;
+
+    VectorVector2d sampling_steps_;
+    double cov_blend_;
 
     double trans_thresh_;
     double rot_thresh_;

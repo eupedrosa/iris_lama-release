@@ -35,6 +35,7 @@
 
 // stl includes
 #include <utility>
+#include <unordered_map>
 
 // local includes
 #include "lama/types.h"
@@ -66,26 +67,46 @@ public:
     // The constant is rounded to the nearest lower even number for practical reasons.
     static const uint64_t UNIVERSAL_CONSTANT = 2642244;
 
+    // Use this magic numebr to identify a sparse-dense map (sdm) binary map.
+    // The number is the hexadecimal encoding of '.smd'.
+    static const uint32_t MAGIC = 0x6d64732e;
+
+    // Version of the binary map supported by the library.
+    static const uint16_t IO_VERSION = 0x0103;
+
     // Resolution of the map.
-    const double resolution;
+    double resolution;
     // The scale of the map, i.e. the inverse of the resolution.
-    const double scale;
+    double scale;
     // The memory size of each individual cell
     const size_t cell_memory_size;
 
     // The length of the patch in cell units.
-    const uint32_t patch_length;
+    uint32_t patch_length;
     // The number of cells in the patch volume.
-    const uint32_t patch_volume;
+    uint32_t patch_volume;
 
     // Less memory can be used when the map is used for 2d purposes.
     const bool is_3d;
+
+    const uint32_t MASK3D;
+
+    // IO header
+    struct IOHeader {
+        uint32_t magic;
+        uint16_t version;
+        uint32_t cell_size;
+        uint32_t patch_length;
+        size_t num_patches;
+        float resolution;
+        bool is_3d;
+    };
 
     // Patches are kept on a sparse map and referenced by their unique id.
     // The container is wrapper around a copy-on-write structure so that we
     // share data efficiently, for example, duplicating a map only duplicates
     // patches that are accessed for writing during their lifetime.
-    Dictionary<uint64_t, COWPtr< Container > > patches;
+    std::unordered_map<uint64_t, COWPtr< Container > > patches;
 
     virtual ~Map();
 
@@ -125,6 +146,56 @@ public:
      */
     inline Vector3d m2w(const Vector3ui& coordinates) const
     { return tf_inv_ * coordinates.cast<double>(); }
+
+    /**
+     * Convert discrete coordinates to patch index.
+     */
+    inline uint64_t m2p(const Vector3ui& coordinates) const
+    {
+        if (is_3d)
+            return ((coordinates(0) >> log2dim) * UNIVERSAL_CONSTANT + (coordinates(1) >> log2dim)) * UNIVERSAL_CONSTANT +
+                (coordinates(2) >> log2dim);
+        else
+            return (coordinates(0) >> log2dim) * UNIVERSAL_CONSTANT +
+                (coordinates(1) >> log2dim);
+    }
+
+    /**
+     * Convert patch index to discrete coordinates
+     */
+    inline Vector3ui p2m(uint64_t idx) const
+    {
+        if (is_3d){
+            auto uc2 = UNIVERSAL_CONSTANT * UNIVERSAL_CONSTANT;
+            return Vector3ui((idx / uc2) << log2dim,
+                    ((idx % uc2) / UNIVERSAL_CONSTANT) << log2dim,
+                    ((idx % uc2) % UNIVERSAL_CONSTANT) << log2dim);
+        }
+        // else
+        return Vector3ui((idx / UNIVERSAL_CONSTANT) << log2dim,
+                (idx % UNIVERSAL_CONSTANT) << log2dim, 0);
+    }
+
+    /**
+     * Convert discrete coordinates to cell index.
+     */
+    inline uint32_t m2c(const Vector3ui& coord) const
+    {
+        const uint32_t mask = ((1<<log2dim)-1);
+
+        return (coord(0) & mask) |
+            ((coord(1) & mask) << log2dim) |
+            ((coord(2) & mask & MASK3D) << (2*log2dim));
+    }
+
+    /**
+     * Convert cell index to local grid discrete coordinates.
+     */
+    inline Vector3ui c2m(uint32_t idx) const
+    {
+        const uint32_t mask = ((1<<log2dim)-1);
+        return { idx & mask, (idx >> log2dim) & mask, (idx >> (2*log2dim)) & mask & MASK3D };
+    }
 
     /**
      * Get the size of allocated memory.
@@ -167,6 +238,10 @@ public:
                         const std::string& algorithm = "lz4");
 
     uint64_t hash(const Vector3ui& coordinates) const;
+    Vector3ui unhash(uint64_t idx, uint64_t stride = UNIVERSAL_CONSTANT) const;
+
+    // Delete the patch that contains the given coordinates.
+    bool deletePatchAt(const Vector3ui& coordinates);
 
     /**
      * Write map to a file.
@@ -203,8 +278,17 @@ public:
     /// The method is more simple and cleaner than implementing
     /// and using an iterator. For each cells it calls a walker.
     /// Lambdas are great for this.
-    void visit_all_cells(const CellWalker& walker);
+    /* void visit_all_cells(const CellWalker& walker); */
     void visit_all_cells(const CellWalker& walker) const;
+
+    /// A patch walker is a function that is called with the
+    /// "origin" coordinates of an existing patch. The "origin"
+    /// coordinates is in the global coordinates.
+    typedef std::function<void(const Vector3ui&)> PatchWalker;
+
+    /// Visit all existing patches and call the walker (or visitor) function
+    /// for each individual patch.
+    void visit_all_patches(const PatchWalker& walker) const;
 
 protected:
 
@@ -253,20 +337,17 @@ protected:
     /**
      * Write internal parameters of the map.
      */
-    virtual void writeParameters(std::ofstream& stream) const
+    virtual void writeParameters(std::ofstream& ) const
     {}
 
     /**
      * Read internal parameters of the map.
      */
-    virtual void readParameters(std::ifstream& stream)
+    virtual void readParameters(std::ifstream& )
     {}
 
 
 private:
-
-    //Vector3ui unhash(uint64_t idx) const;
-    Vector3ui unhash(uint64_t idx, uint64_t stride = UNIVERSAL_CONSTANT) const;
 
     bool lru_key_exists(uint64_t idx) const;
     void lru_put(uint64_t idx, COWPtr< Container >* container) const;
@@ -275,6 +356,8 @@ private:
 
 private:
 
+    int log2dim; // patch lenght in bits
+
     Affine3d tf_;
     Affine3d tf_inv_;
 
@@ -282,6 +365,9 @@ private:
     typedef COWPtr< Container >* lru_type_t;
     typedef std::pair<uint64_t, lru_type_t> key_value_pair_t;
     typedef LinkedList<key_value_pair_t>::iterator list_iterator_t;
+
+    mutable uint64_t prev_idx_ = -1;
+    mutable COWPtr<Container>* prev_patch_;
 
     mutable LinkedList<key_value_pair_t>          lru_items_list_;
     mutable Dictionary<uint64_t, list_iterator_t> lru_items_map_;

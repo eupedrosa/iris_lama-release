@@ -107,7 +107,7 @@ lama::PFSlam2D::PFSlam2D(const Options& options)
     : options_(options)
 {
     solver_options_.max_iterations = options.max_iter;
-    solver_options_.strategy       = makeStrategy(options.strategy, Vector2d::Zero());
+    solver_options_.strategy       = makeStrategy(options.strategy);
     /* solver_options_.robust_cost    = makeRobust("cauchy", 0.25); */
     solver_options_.robust_cost.reset(new CauchyWeight(0.15));
 
@@ -233,7 +233,7 @@ bool lama::PFSlam2D::update(const PointCloudXYZ::Ptr& surface, const Pose2D& odo
 
     const uint32_t num_particles = options_.particles;
     for (uint32_t i = 0; i < num_particles; ++i)
-        drawFromMotion(odelta, particles_[current_particle_set_][i].pose, particles_[current_particle_set_][i].pose);
+        drawFromMotion(odelta, particles_[current_particle_set_][i].pose);
 
     // only continue if the necessary motion was gathered.
     acc_trans_ += odelta.xy().norm();
@@ -341,7 +341,7 @@ void lama::PFSlam2D::saveOccImage(const std::string& name) const
     sdm::export_to_png(*particles_[current_particle_set_][pidx].occ, name);
 }
 
-lama::PFSlam2D::StrategyPtr lama::PFSlam2D::makeStrategy(const std::string& name, const VectorXd& parameters)
+lama::PFSlam2D::StrategyPtr lama::PFSlam2D::makeStrategy(const std::string& name)
 {
     if (name == "gn"){
         return StrategyPtr(new GaussNewton);
@@ -350,7 +350,7 @@ lama::PFSlam2D::StrategyPtr lama::PFSlam2D::makeStrategy(const std::string& name
     }
 }
 
-lama::PFSlam2D::RobustCostPtr lama::PFSlam2D::makeRobust(const std::string& name, const double& param)
+lama::PFSlam2D::RobustCostPtr lama::PFSlam2D::makeRobust(const std::string& name)
 {
     if (name == "cauchy")
         return RobustCostPtr(new CauchyWeight(0.25));
@@ -362,24 +362,24 @@ lama::PFSlam2D::RobustCostPtr lama::PFSlam2D::makeRobust(const std::string& name
         return RobustCostPtr(new UnitWeight);
 }
 
-void lama::PFSlam2D::drawFromMotion(const Pose2D& delta, const Pose2D& old_pose, Pose2D& pose)
+void lama::PFSlam2D::drawFromMotion(const Pose2D& delta, Pose2D& pose)
 {
     double sigma, x, y, yaw;
-    double sxy = 0.3 * options_.srr;
+    double sxy = 0.3 * options_.stt;
 
-    sigma = options_.srr * std::fabs(delta.x())   +
+    sigma = options_.stt * std::fabs(delta.x())   +
             options_.str * std::fabs(delta.rotation()) +
             sxy * std::fabs(delta.y());
 
     x = delta.x() + random::normal(sigma);
 
-    sigma = options_.srr * std::fabs(delta.y())   +
+    sigma = options_.stt * std::fabs(delta.y())   +
             options_.str * std::fabs(delta.rotation()) +
             sxy * std::fabs(delta.x());
 
     y = delta.y() + random::normal(sigma);
 
-    sigma = options_.stt * std::fabs(delta.rotation()) +
+    sigma = options_.srr * std::fabs(delta.rotation()) +
             options_.srt * delta.xy().norm();
 
     yaw = delta.rotation() + random::normal(sigma);
@@ -400,19 +400,12 @@ double lama::PFSlam2D::calculateLikelihood(const Particle& particle)
     trans << particle.pose.x(), particle.pose.y(), 0.0;
 
     Affine3d fixed_tf = Translation3d(trans) * AngleAxisd(particle.pose.rotation(), Vector3d::UnitZ());
-
-    PointCloudXYZ::Ptr cloud(new PointCloudXYZ);
-    const size_t num_points = surface->points.size();
-    //== transform point cloud
     Affine3d tf = fixed_tf * moving_tf;
-    cloud->points.reserve(num_points);
-    for (size_t i = 0; i < num_points; ++i)
-        cloud->points.push_back(tf * surface->points[i]);
-    //==
 
+    const size_t num_points = surface->points.size();
     double likelihood = 0;
     for (size_t i = 0; i < num_points; ++i){
-        Vector3d hit = cloud->points[i];
+        Vector3d hit = tf * surface->points[i];
         double dist = particle.dm->distance(hit, 0);
         likelihood += - (dist*dist) / options_.meas_sigma;
     } // end for
