@@ -1,82 +1,65 @@
 
 set(lama_SOURCES
+    # Base
+    buffer_compressor.cpp
+    graph_slam2d.cpp
+    image_io.cpp
+    loc2d.cpp
+    match_surface_2d.cpp
+    pf_slam2d.cpp
+    print.cpp
     pose2d.cpp
     pose3d.cpp
-    print.cpp
-    buffer_compressor.cpp
     random.cpp
-    image_io.cpp
+    slam2d.cpp
     thread_pool.cpp
+
     # Non-Linear Least Squares Optimization
-    nlls/solver.cpp
-    nlls/robust_cost.cpp
     nlls/gauss_newton.cpp
     nlls/levenberg_marquardt.cpp
+    nlls/robust_cost.cpp
+    nlls/solver.cpp
+
     # Sparse-Dense Mapping
     sdm/container.cpp
-    sdm/map.cpp
     sdm/dynamic_distance_map.cpp
-    sdm/simple_occupancy_map.cpp
-    sdm/frequency_occupancy_map.cpp
-    sdm/probabilistic_occupancy_map.cpp
-    sdm/truncated_signed_distance_map.cpp
-    sdm/marching_cubes.cpp
     sdm/export.cpp
-    # Lossless data compression
-    extern/lz4.c
-    extern/zstd/entropy_common.c
-    extern/zstd/fse_decompress.c
-    extern/zstd/threading.c
-    extern/zstd/pool.c
-    extern/zstd/zstd_common.c
-    extern/zstd/error_private.c
-    extern/zstd/debug.c
-    extern/zstd/fse_compress.c
-    extern/zstd/huf_compress.c
-    extern/zstd/zstd_compress.c
-    extern/zstd/zstdmt_compress.c
-    extern/zstd/zstd_fast.c
-    extern/zstd/zstd_double_fast.c
-    extern/zstd/zstd_lazy.c
-    extern/zstd/zstd_opt.c
-    extern/zstd/zstd_ldm.c
-    extern/zstd/hist.c
-    extern/zstd/huf_decompress.c
-    extern/zstd/zstd_decompress.c
-    extern/zstd/zstd_ddict.c
-    # Localization and Mapping
-    match_surface_2d.cpp
-    loc2d.cpp
-    slam2d.cpp
-    pf_slam2d.cpp
+    sdm/frequency_occupancy_map.cpp
+    sdm/map.cpp
+    sdm/marching_cubes.cpp
+    sdm/probabilistic_occupancy_map.cpp
+    sdm/simple_occupancy_map.cpp
+    sdm/truncated_signed_distance_map.cpp
 )
 
-add_library(${PROJECT_NAME} ${lama_SOURCES})
-target_compile_options(${PROJECT_NAME} PRIVATE -Wall)
+# vendor (or third party) software
+add_subdirectory(../vendor/lz4      vendor/lz4)
+add_subdirectory(../vendor/minisam  vendor/minisam)
+add_subdirectory(../vendor/zstd     vendor/zstd)
 
-if(COMPILING_WITH_CATKIN)
-    install(TARGETS ${PROJECT_NAME}
-      ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-      LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-      RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-    )
-    install(DIRECTORY ../include/lama/
-      DESTINATION ${CATKIN_GLOBAL_INCLUDE_DESTINATION}/lama
-      PATTERN ".svn" EXCLUDE
-    )
-elseif(COMPILING_WITH_AMENT)
-    install(TARGETS ${PROJECT_NAME}
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
-        RUNTIME DESTINATION lib
-        INCLUDES DESTINATION include)
-    install(DIRECTORY ../include/lama/
-        DESTINATION include/lama
-        PATTERN ".svn" EXCLUDE)
-else()
-    export(TARGETS ${PROJECT_NAME} FILE iris_lamaConfig.cmake)
-    set(CMAKE_EXPORT_PACKAGE_REGISTRY ON)
-    export(PACKAGE iris_lama)
-endif()
+add_library(iris_lama ${lama_SOURCES}
+    $<TARGET_OBJECTS:lz4>
+    $<TARGET_OBJECTS:minisam>
+    $<TARGET_OBJECTS:zstd>
+)
 
+target_include_directories(iris_lama
+    PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+    $<INSTALL_INTERFACE:include>
+
+    PRIVATE
+    ../vendor/lz4
+    ../vendor/minisam
+    ../vendor/moodycamel
+    ../vendor/nanoflann
+    ../vendor/stb
+    ../vendor/zstd
+)
+
+target_compile_features(iris_lama PUBLIC cxx_std_14)
+target_compile_options(iris_lama PRIVATE -Wall -Wextra)
+
+target_link_libraries(iris_lama PUBLIC pthread Eigen3::Eigen)
+target_include_directories(iris_lama PRIVATE extern/minisam)
 
