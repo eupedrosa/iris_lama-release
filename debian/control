@@ -1,0 +1,13 @@
+Source: ros-noetic-iris-lama
+Section: misc
+Priority: optional
+Maintainer: Eurico Pedrosa <efp@ua.pt>
+Build-Depends: debhelper (>= 9.0.0), cmake, libeigen3-dev
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-noetic-iris-lama
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, 
+Description: IRIS package for Localization and Mapping (LaMa).
+ This packages includes the sparse-dense library for grid mapping, a 2D localization algorithm based on scan matching, an online SLAM solution with a dynamic likelihood field and a 2D RB Particle Filter SLAM solution with multithreading.
